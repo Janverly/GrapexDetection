@@ -1,0 +1,20 @@
+{
+  "name": "GrapeXDetection",
+  "short_name": "GrapeXDetection",
+  "description": "AI-powered grape leaf disease detection and treatment recommendations",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg",
+      "sizes": "180x180",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["agriculture", "medical", "productivity"],
+  "screenshots": []
+}
