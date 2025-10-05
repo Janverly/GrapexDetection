@@ -133,6 +133,7 @@ app.post("/api/sessions", async (c) => {
 
     // tokens should include id_token which is a JWT containing user info
     const idToken = tokens.id_token;
+    const accessToken = tokens.access_token;
     if (!idToken) {
       return c.json({ error: "No id_token received from Google" }, 500);
     }
@@ -141,6 +142,7 @@ app.post("/api/sessions", async (c) => {
     const user = await verifyIdToken(idToken);
     if (!user) return c.json({ error: "Invalid id_token" }, 401);
 
+    // Store id_token for authentication and access_token to allow optional revocation
     setCookie(c, GOOGLE_SESSION_TOKEN_COOKIE_NAME, idToken, {
       httpOnly: true,
       path: "/",
@@ -148,6 +150,16 @@ app.post("/api/sessions", async (c) => {
       secure: true,
       maxAge: 60 * 24 * 60 * 60, // 60 days
     });
+
+    if (accessToken) {
+      setCookie(c, `${GOOGLE_SESSION_TOKEN_COOKIE_NAME}_access`, accessToken, {
+        httpOnly: true,
+        path: "/",
+        sameSite: "none",
+        secure: true,
+        maxAge: 60 * 24 * 60 * 60,
+      });
+    }
 
     return c.json({ success: true }, 200);
   } catch (err: any) {
@@ -160,9 +172,28 @@ app.get("/api/users/me", authMiddleware, async (c) => {
 });
 
 app.get('/api/logout', async (c) => {
-  // For Google OAuth, we simply clear the session cookie. If you want to
-  // revoke tokens, you can call Google's revocation endpoint with the access_token.
+  // Try to revoke the access token (if present) then clear cookies
+  const accessToken = getCookie(c, `${GOOGLE_SESSION_TOKEN_COOKIE_NAME}_access`);
+  if (accessToken && typeof accessToken === 'string') {
+    try {
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
+        method: 'POST',
+        headers: { 'Content-type': 'application/x-www-form-urlencoded' },
+      });
+    } catch (e) {
+      // ignore revocation errors
+    }
+  }
+
   setCookie(c, GOOGLE_SESSION_TOKEN_COOKIE_NAME, '', {
+    httpOnly: true,
+    path: '/',
+    sameSite: 'none',
+    secure: true,
+    maxAge: 0,
+  });
+
+  setCookie(c, `${GOOGLE_SESSION_TOKEN_COOKIE_NAME}_access`, '', {
     httpOnly: true,
     path: '/',
     sameSite: 'none',

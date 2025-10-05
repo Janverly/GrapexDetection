@@ -9,9 +9,9 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg",
+      "src": "/assets/grapex-logo.svg",
       "sizes": "180x180",
-      "type": "image/jpeg",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],

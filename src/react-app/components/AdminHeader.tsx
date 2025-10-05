@@ -18,11 +18,11 @@ export default function AdminHeader({ title }: AdminHeaderProps) {
       <div className="flex items-center justify-between max-w-md mx-auto">
         <div className="flex items-center space-x-3">
           <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-            <img 
-              src="https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg" 
-              alt="GrapeX Logo" 
-              className="w-6 h-6 rounded-md object-cover"
-            />
+                <img 
+                  src="/assets/grapex-logo.svg" 
+                  alt="GrapeX Logo" 
+                  className="w-6 h-6 rounded-md object-cover"
+                />
           </div>
           <div>
             <div className="flex items-center space-x-2">

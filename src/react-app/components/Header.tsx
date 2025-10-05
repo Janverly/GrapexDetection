@@ -19,7 +19,7 @@ export default function Header({ title, showProfile = true }: HeaderProps) {
           <HamburgerMenu />
           <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
             <img 
-              src="https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg" 
+              src="/assets/grapex-logo.svg" 
               alt="GrapeX Logo" 
               className="w-6 h-6 rounded-md object-cover"
             />

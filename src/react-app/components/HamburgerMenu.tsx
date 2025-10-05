@@ -59,9 +59,9 @@ export default function HamburgerMenu() {
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-3">
-              <img 
-                src="https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg" 
-                alt="GrapeX Logo" 
+              <img
+                src="/assets/grapex-logo.svg"
+                alt="GrapeX Logo"
                 className="w-10 h-10 rounded-lg object-cover"
               />
               <div>

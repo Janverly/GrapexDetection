@@ -40,7 +40,7 @@ export default function Login() {
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-24 h-24 bg-white rounded-3xl mb-8 shadow-2xl p-3">
             <img 
-              src="https://mocha-cdn.com/01999a54-b558-71fe-9ed3-c8aaf7516305/grapex-logo-5YsULcDk.jpeg" 
+              src="/assets/grapex-logo.svg" 
               alt="GrapeX Logo" 
               className="w-full h-full object-cover rounded-2xl"
             />
