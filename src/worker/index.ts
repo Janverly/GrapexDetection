@@ -1,14 +1,106 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { zValidator } from "@hono/zod-validator";
-import {
-  getOAuthRedirectUrl,
-  exchangeCodeForSessionToken,
-  authMiddleware,
-  deleteSession,
-  MOCHA_SESSION_TOKEN_COOKIE_NAME,
-} from "@getmocha/users-service/backend";
+// Implement Google OAuth flow directly instead of using the @getmocha users-service
 import { getCookie, setCookie } from "hono/cookie";
+
+// Worker globals (help TypeScript in this environment)
+declare const fetch: any;
+declare const URLSearchParams: any;
+
+// Minimal Env type for Cloudflare bindings used in this worker
+interface Env {
+  DB: any;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+  GOOGLE_OAUTH_REDIRECT_URI: string;
+}
+
+const GOOGLE_SESSION_TOKEN_COOKIE_NAME = "gx_session_token";
+
+type AuthUser = {
+  id: string;
+  email: string;
+  name?: string;
+  picture?: string;
+};
+
+// Build the Google OAuth2 authorization URL
+function buildGoogleOAuthRedirectUrl(env: Env) {
+  const clientId = env.GOOGLE_CLIENT_ID;
+  const redirectUri = env.GOOGLE_OAUTH_REDIRECT_URI; // should be provided in environment
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: "openid email profile",
+    prompt: "consent",
+    access_type: "offline",
+  });
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+// Exchange authorization code for tokens at Google's token endpoint
+async function exchangeCodeForTokens(code: string, env: Env) {
+  const tokenUrl = "https://oauth2.googleapis.com/token";
+  const body = new URLSearchParams({
+    code,
+    client_id: env.GOOGLE_CLIENT_ID,
+    client_secret: env.GOOGLE_CLIENT_SECRET,
+    redirect_uri: env.GOOGLE_OAUTH_REDIRECT_URI,
+    grant_type: "authorization_code",
+  });
+
+  const res = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Google token exchange failed: ${res.status} ${text}`);
+  }
+
+  return res.json();
+}
+
+// Verify ID token by calling Google's tokeninfo endpoint and return user info
+async function verifyIdToken(idToken: string) {
+  const url = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  // tokeninfo returns fields like email, sub (user id), name, picture
+  return data;
+}
+
+// Hono middleware that verifies the session cookie (ID token) and attaches user
+const authMiddleware = async (c: any, next: any) => {
+  const token = getCookie(c, GOOGLE_SESSION_TOKEN_COOKIE_NAME);
+  if (!token || typeof token !== "string") {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  try {
+    const user = await verifyIdToken(token);
+    if (!user || !user.email) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    c.set("user", {
+      id: user.sub,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+    });
+
+    return await next();
+  } catch (err) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+};
 import { CreateScanSchema, CreateReportSchema } from "@/shared/types";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -21,12 +113,12 @@ app.use("*", cors({
 
 // Auth routes
 app.get('/api/oauth/google/redirect_url', async (c) => {
-  const redirectUrl = await getOAuthRedirectUrl('google', {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
-
-  return c.json({ redirectUrl }, 200);
+  try {
+    const redirectUrl = buildGoogleOAuthRedirectUrl(c.env as unknown as Env);
+    return c.json({ redirectUrl }, 200);
+  } catch (err: any) {
+    return c.json({ error: err.message || String(err) }, 500);
+  }
 });
 
 app.post("/api/sessions", async (c) => {
@@ -36,37 +128,41 @@ app.post("/api/sessions", async (c) => {
     return c.json({ error: "No authorization code provided" }, 400);
   }
 
-  const sessionToken = await exchangeCodeForSessionToken(body.code, {
-    apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-    apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-  });
+  try {
+    const tokens = await exchangeCodeForTokens(body.code, c.env as unknown as Env);
 
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, sessionToken, {
-    httpOnly: true,
-    path: "/",
-    sameSite: "none",
-    secure: true,
-    maxAge: 60 * 24 * 60 * 60, // 60 days
-  });
+    // tokens should include id_token which is a JWT containing user info
+    const idToken = tokens.id_token;
+    if (!idToken) {
+      return c.json({ error: "No id_token received from Google" }, 500);
+    }
 
-  return c.json({ success: true }, 200);
+    // Optionally verify ID token server-side now
+    const user = await verifyIdToken(idToken);
+    if (!user) return c.json({ error: "Invalid id_token" }, 401);
+
+    setCookie(c, GOOGLE_SESSION_TOKEN_COOKIE_NAME, idToken, {
+      httpOnly: true,
+      path: "/",
+      sameSite: "none",
+      secure: true,
+      maxAge: 60 * 24 * 60 * 60, // 60 days
+    });
+
+    return c.json({ success: true }, 200);
+  } catch (err: any) {
+    return c.json({ error: err.message || String(err) }, 500);
+  }
 });
 
 app.get("/api/users/me", authMiddleware, async (c) => {
-  return c.json(c.get("user"));
+  return c.json((c as any).get("user"));
 });
 
 app.get('/api/logout', async (c) => {
-  const sessionToken = getCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME);
-
-  if (typeof sessionToken === 'string') {
-    await deleteSession(sessionToken, {
-      apiUrl: c.env.MOCHA_USERS_SERVICE_API_URL,
-      apiKey: c.env.MOCHA_USERS_SERVICE_API_KEY,
-    });
-  }
-
-  setCookie(c, MOCHA_SESSION_TOKEN_COOKIE_NAME, '', {
+  // For Google OAuth, we simply clear the session cookie. If you want to
+  // revoke tokens, you can call Google's revocation endpoint with the access_token.
+  setCookie(c, GOOGLE_SESSION_TOKEN_COOKIE_NAME, '', {
     httpOnly: true,
     path: '/',
     sameSite: 'none',
@@ -87,7 +183,7 @@ app.get("/api/diseases", async (c) => {
 });
 
 app.get("/api/admin/reports", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -104,7 +200,7 @@ app.get("/api/admin/reports", authMiddleware, async (c) => {
 });
 
 app.put("/api/admin/reports/:id/status", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -135,7 +231,7 @@ app.put("/api/admin/reports/:id/status", authMiddleware, async (c) => {
 
 // Scans endpoints
 app.get("/api/scans", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -150,7 +246,7 @@ app.get("/api/scans", authMiddleware, async (c) => {
 });
 
 app.post("/api/scans", authMiddleware, zValidator("json", CreateScanSchema), async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -180,7 +276,7 @@ app.post("/api/scans", authMiddleware, zValidator("json", CreateScanSchema), asy
 
 // Reports endpoints
 app.get("/api/reports", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -195,7 +291,7 @@ app.get("/api/reports", authMiddleware, async (c) => {
 });
 
 app.post("/api/reports", authMiddleware, zValidator("json", CreateReportSchema), async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -226,7 +322,7 @@ app.post("/api/reports", authMiddleware, zValidator("json", CreateReportSchema),
 
 // Admin endpoints
 app.get("/api/admin/users", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -252,7 +348,7 @@ app.get("/api/admin/users", authMiddleware, async (c) => {
 });
 
 app.get("/api/admin/stats", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
@@ -304,7 +400,7 @@ app.get("/api/admin/stats", authMiddleware, async (c) => {
 });
 
 app.get("/api/admin/scans", authMiddleware, async (c) => {
-  const user = c.get("user");
+  const user = (c as any).get("user") as AuthUser | undefined;
   if (!user) {
     return c.json({ error: "Unauthorized" }, 401);
   }

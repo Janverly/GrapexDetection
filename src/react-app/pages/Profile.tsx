@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import { Mail, Calendar, Activity, Camera, History, Shield, LogOut, Settings, Edit3 } from "lucide-react";
 import Header from "@/react-app/components/Header";

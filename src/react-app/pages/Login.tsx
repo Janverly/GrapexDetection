@@ -1,4 +1,4 @@
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import { useEffect } from "react";
 import { Leaf, ArrowRight, Camera, Shield, History } from "lucide-react";

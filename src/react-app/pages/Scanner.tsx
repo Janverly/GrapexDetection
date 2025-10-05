@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import Webcam from "react-webcam";
 import { Camera, RotateCcw, Check, Loader2, AlertCircle, MapPin, Upload, ImageIcon } from "lucide-react";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { Menu, X, Home, Camera, History, Shield, LogOut, User } from "lucide-react";
 
 export default function HamburgerMenu() {

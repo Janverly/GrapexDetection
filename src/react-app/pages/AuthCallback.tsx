@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { Loader2 } from "lucide-react";
 
 export default function AuthCallback() {

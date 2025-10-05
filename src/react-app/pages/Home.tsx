@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import { Camera, Upload, History, AlertTriangle, Leaf, RotateCcw, Cloud, Droplets, Wind, Activity, User } from "lucide-react";
 import HamburgerMenu from "@/react-app/components/HamburgerMenu";

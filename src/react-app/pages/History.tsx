@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import { Calendar, MapPin, TrendingUp, AlertTriangle } from "lucide-react";
 

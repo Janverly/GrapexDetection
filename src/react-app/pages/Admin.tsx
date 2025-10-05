@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "@getmocha/users-service/react";
+import { useAuth } from "@/react-app/utils/auth";
 import { useNavigate } from "react-router";
 import { Users, BarChart3, Calendar, AlertTriangle, User, Shield, MapIcon, Filter, MessageSquare } from "lucide-react";
 import AdminHeader from "@/react-app/components/AdminHeader";
